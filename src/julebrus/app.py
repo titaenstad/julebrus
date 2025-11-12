@@ -107,4 +107,4 @@ def app() -> None:
     """Run the Flask app."""
     print("Starting Julebrus app...")
     print(f"Data directory: {DATA_DIR}")
-    flask_app.run(debug=True, host="127.0.0.1", port=5000)
+    flask_app.run(debug=True, host="0.0.0.0", port=5000)
