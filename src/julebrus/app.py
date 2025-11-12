@@ -90,10 +90,16 @@ def save_order():
     USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
     output_file = USER_DATA_DIR / f"{navn}.tsv"
 
+    file_existed = output_file.exists()
+
     df = pd.DataFrame({"kodenavn": order})
     df.to_csv(output_file, sep="\t", index=False)
 
-    return jsonify({"success": True, "file": str(output_file)})
+    response = {"success": True, "file": str(output_file)}
+    if file_existed:
+        response["warning"] = "Eksisterende rangering ble overskrevet"
+
+    return jsonify(response)
 
 
 @flask_app.route("/results")

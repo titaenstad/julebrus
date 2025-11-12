@@ -285,7 +285,11 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        showMessage(`Rangeringen din er lagret! (${data.file})`, 'success');
+                        let message = `Rangeringen din er lagret! (${data.file})`;
+                        if (data.warning) {
+                            message += ` - ${data.warning}`;
+                        }
+                        showMessage(message, 'success');
                     } else {
                         showMessage('Feil: ' + (data.error || 'Ukjent feil'), 'error');
                     }
