@@ -1,0 +1,25 @@
+[project]
+name = "julebrus"
+version = "0.1.0"
+description = "Holder styr på viktig blindtest av julebrus"
+readme = "README.md"
+authors = [
+    { name = "Tita", email = "tita.enstad@nb.no" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.0.0",
+    "pandas>=2.3.3",
+]
+
+[project.scripts]
+julebrus = "julebrus:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+]
