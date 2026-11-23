@@ -1,11 +1,7 @@
-#!/usr/bin/env python3
-"""
-Script to generate a julebrus table from a list of strings.
-"""
-
 import argparse
 import string
 from pathlib import Path
+
 import pandas as pd
 
 

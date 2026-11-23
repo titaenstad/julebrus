@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-julebrus = "julebrus:main"
+julebrus = "julebrus.app:app"
 
 [build-system]
 requires = ["hatchling"]

@@ -1,25 +1,20 @@
+import argparse
 from pathlib import Path
+
 import pandas as pd
-from flask import Flask, render_template, request, jsonify
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-TABLE_DATA_DIR = DATA_DIR / "table_data"
-USER_DATA_DIR = DATA_DIR / "user_data"
-
-flask_app = Flask(__name__)
+from flask import Flask, jsonify, render_template, request
 
 
-def load_kodenavn() -> list[str]:
+def load_kodenavn(table_data_dir: Path) -> list[str]:
     """Load kodenavn from the julebrus.tsv file using pandas."""
-    tsv_file = TABLE_DATA_DIR / "julebrus.tsv"
+    tsv_file = table_data_dir / "julebrus.tsv"
     df = pd.read_csv(tsv_file, sep="\t")
     return df["kodenavn"].tolist()
 
 
-def load_brusnavn_mapping() -> dict[str, str]:
+def load_brusnavn_mapping(table_data_dir: Path) -> dict[str, str]:
     """Load mapping of kodenavn to brusnavn."""
-    tsv_file = TABLE_DATA_DIR / "julebrus.tsv"
+    tsv_file = table_data_dir / "julebrus.tsv"
     df = pd.read_csv(tsv_file, sep="\t")
     return dict(zip(df["kodenavn"], df["brusnavn"]))
 
@@ -57,60 +52,90 @@ def calculate_ranks(combined_df: pd.DataFrame) -> pd.DataFrame:
     ).sort_values("rank")
 
 
-def read_user_files_and_rank() -> tuple[list[dict], int]:
+def read_user_files_and_rank(
+    table_data_dir: Path, user_data_dir: Path
+) -> tuple[list[dict], int]:
     """Calculate overall rankings based on all user files using pandas."""
 
-    user_files = list(USER_DATA_DIR.glob("*.tsv"))
+    user_files = list(user_data_dir.glob("*.tsv"))
     number_of_users = len(user_files)
     user_df = read_user_files(user_files=user_files)
     summary = calculate_ranks(user_df)
 
-    brusnavn_mapping = load_brusnavn_mapping()
+    brusnavn_mapping = load_brusnavn_mapping(table_data_dir)
     summary["brusnavn"] = summary["kodenavn"].map(brusnavn_mapping)
     return summary.to_dict("records"), number_of_users
 
 
-@flask_app.route("/")
-def index() -> str:
-    """Render the main page."""
-    kodenavn = load_kodenavn()
-    return render_template("index.html", kodenavn=kodenavn)
-
-
-@flask_app.route("/save", methods=["POST"])
-def save_order():
-    """Save the user's ordering to a TSV file using pandas."""
-    data = request.json
-    navn = data.get("navn", "").strip()
-    order = data.get("order", [])
-
-    if not navn:
-        return jsonify({"success": False, "error": "Name is required"}), 400
-
-    USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    output_file = USER_DATA_DIR / f"{navn}.tsv"
+def save_user_order(user_data_dir: Path, navn: str, order: list[str]) -> tuple[Path, bool]:
+    """Save a user's ordering to a TSV file. Returns the file path and whether it existed."""
+    user_data_dir.mkdir(parents=True, exist_ok=True)
+    output_file = user_data_dir / f"{navn}.tsv"
 
     file_existed = output_file.exists()
 
     df = pd.DataFrame({"kodenavn": order})
     df.to_csv(output_file, sep="\t", index=False)
 
-    response = {"success": True, "file": str(output_file)}
-    if file_existed:
-        response["warning"] = "Eksisterende rangering ble overskrevet"
-
-    return jsonify(response)
+    return output_file, file_existed
 
 
-@flask_app.route("/results")
-def results() -> str:
-    """Display the overall rankings based on all user submissions."""
-    rankings, num_users = read_user_files_and_rank()
-    return render_template("results.html", rankings=rankings, num_users=num_users)
+def create_app(table_data_dir: Path, user_data_dir: Path) -> Flask:
+    """Create the Flask app, reading and writing data in the given directories."""
+    flask_app = Flask(__name__)
+
+    @flask_app.route("/")
+    def index() -> str:
+        """Render the main page."""
+        kodenavn = load_kodenavn(table_data_dir)
+        return render_template("index.html", kodenavn=kodenavn)
+
+    @flask_app.route("/save", methods=["POST"])
+    def save_order():
+        """Save the user's ordering to a TSV file using pandas."""
+        data = request.json
+        navn = data.get("navn", "").strip()
+        order = data.get("order", [])
+
+        if not navn:
+            return jsonify({"success": False, "error": "Name is required"}), 400
+
+        output_file, file_existed = save_user_order(user_data_dir, navn, order)
+
+        response = {"success": True, "file": str(output_file)}
+        if file_existed:
+            response["warning"] = "Eksisterende rangering ble overskrevet"
+
+        return jsonify(response)
+
+    @flask_app.route("/results")
+    def results() -> str:
+        """Display the overall rankings based on all user submissions."""
+        rankings, num_users = read_user_files_and_rank(table_data_dir, user_data_dir)
+        return render_template("results.html", rankings=rankings, num_users=num_users)
+
+    return flask_app
 
 
 def app() -> None:
     """Run the Flask app."""
+    default_data_dir = Path(__file__).resolve().parent.parent.parent / "data"
+
+    parser = argparse.ArgumentParser(description="Run the Julebrus app.")
+    parser.add_argument(
+        "data_dir",
+        nargs="?",
+        type=Path,
+        default=default_data_dir,
+        help=f"Directory containing table_data/ and user_data/ (default: {default_data_dir})",
+    )
+    args = parser.parse_args()
+
+    data_dir = args.data_dir.resolve()
+    table_data_dir = data_dir / "table_data"
+    user_data_dir = data_dir / "user_data"
+
     print("Starting Julebrus app...")
-    print(f"Data directory: {DATA_DIR}")
+    print(f"Data directory: {data_dir}")
+    flask_app = create_app(table_data_dir, user_data_dir)
     flask_app.run(debug=True, host="0.0.0.0", port=5000)
