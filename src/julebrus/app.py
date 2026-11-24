@@ -55,7 +55,6 @@ def calculate_ranks(combined_df: pd.DataFrame) -> pd.DataFrame:
 def read_user_files_and_rank(
     table_data_dir: Path, user_data_dir: Path
 ) -> tuple[list[dict], int]:
-    """Calculate overall rankings based on all user files using pandas."""
 
     user_files = list(user_data_dir.glob("*.tsv"))
     number_of_users = len(user_files)
@@ -67,8 +66,9 @@ def read_user_files_and_rank(
     return summary.to_dict("records"), number_of_users
 
 
-def save_user_order(user_data_dir: Path, navn: str, order: list[str]) -> tuple[Path, bool]:
-    """Save a user's ordering to a TSV file. Returns the file path and whether it existed."""
+def save_user_order(
+    user_data_dir: Path, navn: str, order: list[str]
+) -> tuple[Path, bool]:
     user_data_dir.mkdir(parents=True, exist_ok=True)
     output_file = user_data_dir / f"{navn}.tsv"
 
@@ -81,7 +81,6 @@ def save_user_order(user_data_dir: Path, navn: str, order: list[str]) -> tuple[P
 
 
 def create_app(table_data_dir: Path, user_data_dir: Path) -> Flask:
-    """Create the Flask app, reading and writing data in the given directories."""
     flask_app = Flask(__name__)
 
     @flask_app.route("/")
@@ -110,7 +109,6 @@ def create_app(table_data_dir: Path, user_data_dir: Path) -> Flask:
 
     @flask_app.route("/results")
     def results() -> str:
-        """Display the overall rankings based on all user submissions."""
         rankings, num_users = read_user_files_and_rank(table_data_dir, user_data_dir)
         return render_template("results.html", rankings=rankings, num_users=num_users)
 
@@ -118,7 +116,6 @@ def create_app(table_data_dir: Path, user_data_dir: Path) -> Flask:
 
 
 def app() -> None:
-    """Run the Flask app."""
     default_data_dir = Path(__file__).resolve().parent.parent.parent / "data"
 
     parser = argparse.ArgumentParser(description="Run the Julebrus app.")

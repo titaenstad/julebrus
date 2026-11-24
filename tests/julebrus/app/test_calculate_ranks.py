@@ -1,4 +1,5 @@
 import pandas as pd
+
 from src.julebrus.app import calculate_ranks
 
 
