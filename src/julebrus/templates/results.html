@@ -145,6 +145,13 @@
             font-size: 20px;
         }
 
+        .brus-picture {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
         .brusnavn {
             color: #333;
             font-size: 16px;
@@ -166,6 +173,7 @@
                 <tr>
                     <th class="center">Rangering</th>
                     <th>Kodenavn</th>
+                    <th class="center">Bilde</th>
                     <th>Brusnavn</th>
                 </tr>
             </thead>
@@ -179,6 +187,12 @@
                     </td>
                     <td>
                         <span class="kodenavn">{{ item.kodenavn }}</span>
+                    </td>
+                    <td class="center">
+                        {% if item.picture %}
+                        <img class="brus-picture" src="{{ url_for('picture', filename=item.picture) }}"
+                            alt="{{ item.brusnavn }}">
+                        {% endif %}
                     </td>
                     <td>
                         <span class="brusnavn">{{ item.brusnavn }}</span>

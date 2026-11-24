@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 import pandas as pd
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, send_from_directory
 
 
 def load_kodenavn(table_data_dir: Path) -> list[str]:
@@ -80,8 +80,9 @@ def save_user_order(
     return output_file, file_existed
 
 
-def create_app(table_data_dir: Path, user_data_dir: Path) -> Flask:
+def create_app(table_data_dir: Path, user_data_dir: Path, pictures_dir: Path) -> Flask:
     flask_app = Flask(__name__)
+    pictures_dir = pictures_dir.resolve()
 
     @flask_app.route("/")
     def index() -> str:
@@ -110,7 +111,17 @@ def create_app(table_data_dir: Path, user_data_dir: Path) -> Flask:
     @flask_app.route("/results")
     def results() -> str:
         rankings, num_users = read_user_files_and_rank(table_data_dir, user_data_dir)
+        for item in rankings:
+            picture = f"{item['brusnavn']}.jpg"
+            assert (pictures_dir / picture).is_file()
+            item["picture"] = picture
         return render_template("results.html", rankings=rankings, num_users=num_users)
+
+    @flask_app.route("/pictures/<path:filename>")
+    def picture(filename: str):
+        if not pictures_dir.is_dir():
+            abort(404)
+        return send_from_directory(pictures_dir, filename)
 
     return flask_app
 
@@ -124,15 +135,16 @@ def app() -> None:
         nargs="?",
         type=Path,
         default=default_data_dir,
-        help=f"Directory containing table_data/ and user_data/ (default: {default_data_dir})",
+        help=f"Directory containing table_data/, user_data/ and pictures/ (default: {default_data_dir})",
     )
     args = parser.parse_args()
 
     data_dir = args.data_dir.resolve()
     table_data_dir = data_dir / "table_data"
     user_data_dir = data_dir / "user_data"
+    pictures_dir = data_dir / "pictures"
 
     print("Starting Julebrus app...")
     print(f"Data directory: {data_dir}")
-    flask_app = create_app(table_data_dir, user_data_dir)
+    flask_app = create_app(table_data_dir, user_data_dir, pictures_dir)
     flask_app.run(debug=True, host="0.0.0.0", port=5000)
