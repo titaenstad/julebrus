@@ -2,192 +2,52 @@
 <html lang="no">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% include "_head.html" %}
     <title>Julebrus Ranking</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            padding: 30px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-        }
-
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 10px;
-        }
-
-        .subtitle {
-            text-align: center;
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-
-        .boxes-container {
-            margin-bottom: 30px;
-            min-height: 100px;
-        }
-
-        .box {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            margin-bottom: 10px;
-            border-radius: 8px;
-            cursor: move;
-            user-select: none;
-            font-size: 24px;
-            font-weight: bold;
-            text-align: center;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        .box:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .box.dragging {
-            opacity: 0.5;
-        }
-
-        .box.drag-over {
-            border: 2px dashed #333;
-        }
-
-        .controls {
-            background: #f5f5f5;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #333;
-        }
-
-        input[type="text"] {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 6px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 30px;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            width: 100%;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        button:active {
-            transform: translateY(0);
-        }
-
-        .message {
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 15px;
-            display: none;
-        }
-
-        .message.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .message.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .instructions {
-            background: #e7f3ff;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            border-left: 4px solid #667eea;
-        }
-
-        .instructions p {
-            margin-bottom: 5px;
-            color: #333;
-        }
-    </style>
 </head>
 
 <body>
-    <div class="container">
-        <h1>🎄 Julebrus Ranking 🎄</h1>
+    {% include "_ornaments.html" %}
+    <main class="page">
+        {% include "_corners.html" %}
+        <img class="banner" src="{{ url_for('static', filename='img/angels.png') }}" alt="">
+
+        <h1><span class="initial">J</span>ulebrusrangering</h1>
+        <svg class="flourish" aria-hidden="true">
+            <use href="#flourish" />
+        </svg>
         <p class="subtitle">Rangér julebrusene fra best (øverst) til dårligst (nederst)</p>
 
-        <div class="instructions">
-            <p><strong>Instruksjoner:</strong></p>
-            <p>• Dra og slipp boksene for å rangere dem</p>
-            <p>• Skriv inn navnet ditt og klikk "Lagre"</p>
-        </div>
-
-        <div class="boxes-container" id="boxesContainer">
-            {% for item in kodenavn %}
-            <div class="box" draggable="true" data-kodenavn="{{ item }}">{{ item }}</div>
-            {% endfor %}
+        <div class="ranking">
+            <ol class="rank-numbers" aria-hidden="true">
+                {% for item in kodenavn %}
+                <li>{{ loop.index }}</li>
+                {% endfor %}
+            </ol>
+            <div class="boxes-container" id="boxesContainer">
+                {% for item in kodenavn %}
+                <div class="box brus-{{ loop.index }}" draggable="true" data-kodenavn="{{ item }}">
+                    <span class="seal"><svg aria-hidden="true">
+                            <use href="#brus-{{ loop.index }}" />
+                        </svg></span>
+                    <span>{{ item }}</span>
+                </div>
+                {% endfor %}
+            </div>
         </div>
 
         <div class="controls">
             <div class="form-group">
-                <label for="navn">Navn:</label>
-                <input type="text" id="navn" name="navn" placeholder="Skriv navnet ditt her">
+                <label for="navn">Navn</label>
+                <input type="text" id="navn" name="navn" placeholder="Gøril">
             </div>
-            <button onclick="saveOrder()">Lagre min rangering</button>
+            <button onclick="saveOrder()">Lagre</button>
             <div id="message" class="message"></div>
         </div>
-    </div>
+
+        <img class="footer-ornament" src="{{ url_for('static', filename='img/flying_birds.png') }}" alt="">
+        {% include "_credit.html" %}
+    </main>
 
     <script>
         // Drag and drop functionality
@@ -285,7 +145,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        let message = `Rangeringen din er lagret! (${data.file})`;
+                        let message = `Rangeringen din er lagret!`;
                         if (data.warning) {
                             message += ` - ${data.warning}`;
                         }

@@ -1,22 +1,63 @@
 import argparse
+import json
+import string
 from pathlib import Path
 
 import pandas as pd
 from flask import Flask, abort, jsonify, render_template, request, send_from_directory
 
 
-def load_kodenavn(table_data_dir: Path) -> list[str]:
-    """Load kodenavn from the julebrus.tsv file using pandas."""
-    tsv_file = table_data_dir / "julebrus.tsv"
-    df = pd.read_csv(tsv_file, sep="\t")
-    return df["kodenavn"].tolist()
+def load_brusnavn(data_dir: Path) -> dict[str, str]:
+    """Load the mapping of short brusnavn (picture file stem) to full name."""
+    json_file = data_dir / "brusnavn.json"
+    brusnavn = json.loads(json_file.read_text(encoding="utf-8"))
+    return {short: full.strip() for short, full in brusnavn.items()}
 
 
-def load_brusnavn_mapping(table_data_dir: Path) -> dict[str, str]:
-    """Load mapping of kodenavn to brusnavn."""
-    tsv_file = table_data_dir / "julebrus.tsv"
-    df = pd.read_csv(tsv_file, sep="\t")
-    return dict(zip(df["kodenavn"], df["brusnavn"]))
+def check_pictures(pictures_dir: Path, brusnavn: dict[str, str]) -> None:
+    missing = [short for short in brusnavn if not (pictures_dir / f"{short}.jpg").is_file()]
+    if missing:
+        raise FileNotFoundError(
+            f"Missing pictures in {pictures_dir}: {', '.join(f'{m}.jpg' for m in missing)}"
+        )
+
+
+def create_julebrus_table(brusnavn: list[str]) -> pd.DataFrame:
+    """Assign a kodenavn (A, B, C, ...) to each brusnavn, in sorted order."""
+    if len(brusnavn) > len(string.ascii_uppercase):
+        raise ValueError(
+            f"Got {len(brusnavn)} brus, but at most {len(string.ascii_uppercase)} are supported"
+        )
+    return pd.DataFrame(
+        {
+            "brusnavn": sorted(brusnavn),
+            "kodenavn": list(string.ascii_uppercase[: len(brusnavn)]),
+        }
+    )
+
+
+def load_or_create_julebrus_table(
+    data_dir: Path, brusnavn: dict[str, str]
+) -> pd.DataFrame:
+    """Read julebrus.tsv, or create it from brusnavn if it does not exist yet.
+
+    An existing table is never regenerated, since saved user rankings refer to its kodenavn.
+    """
+    tsv_file = data_dir / "julebrus.tsv"
+    if tsv_file.exists():
+        df = pd.read_csv(tsv_file, sep="\t")
+        if set(df["brusnavn"]) != set(brusnavn):
+            raise ValueError(
+                f"{tsv_file} does not match brusnavn.json. "
+                f"Only in julebrus.tsv: {sorted(set(df['brusnavn']) - set(brusnavn))}. "
+                f"Only in brusnavn.json: {sorted(set(brusnavn) - set(df['brusnavn']))}."
+            )
+        return df
+
+    df = create_julebrus_table(list(brusnavn))
+    df.to_csv(tsv_file, sep="\t", index=False)
+    print(f"Created {tsv_file} with {len(df)} brus")
+    return df
 
 
 def read_user_files(user_files: list[str]) -> pd.DataFrame:
@@ -53,7 +94,7 @@ def calculate_ranks(combined_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def read_user_files_and_rank(
-    table_data_dir: Path, user_data_dir: Path
+    julebrus_table: pd.DataFrame, user_data_dir: Path
 ) -> tuple[list[dict], int]:
 
     user_files = list(user_data_dir.glob("*.tsv"))
@@ -61,7 +102,7 @@ def read_user_files_and_rank(
     user_df = read_user_files(user_files=user_files)
     summary = calculate_ranks(user_df)
 
-    brusnavn_mapping = load_brusnavn_mapping(table_data_dir)
+    brusnavn_mapping = dict(zip(julebrus_table["kodenavn"], julebrus_table["brusnavn"]))
     summary["brusnavn"] = summary["kodenavn"].map(brusnavn_mapping)
     return summary.to_dict("records"), number_of_users
 
@@ -80,14 +121,20 @@ def save_user_order(
     return output_file, file_existed
 
 
-def create_app(table_data_dir: Path, user_data_dir: Path, pictures_dir: Path) -> Flask:
+def create_app(data_dir: Path) -> Flask:
+    user_data_dir = data_dir / "user_data"
+    pictures_dir = (data_dir / "bilder").resolve()
+
+    brusnavn = load_brusnavn(data_dir)
+    check_pictures(pictures_dir, brusnavn)
+    julebrus_table = load_or_create_julebrus_table(data_dir, brusnavn)
+    kodenavn = julebrus_table["kodenavn"].tolist()
+
     flask_app = Flask(__name__)
-    pictures_dir = pictures_dir.resolve()
 
     @flask_app.route("/")
     def index() -> str:
         """Render the main page."""
-        kodenavn = load_kodenavn(table_data_dir)
         return render_template("index.html", kodenavn=kodenavn)
 
     @flask_app.route("/save", methods=["POST"])
@@ -110,14 +157,14 @@ def create_app(table_data_dir: Path, user_data_dir: Path, pictures_dir: Path) ->
 
     @flask_app.route("/results")
     def results() -> str:
-        rankings, num_users = read_user_files_and_rank(table_data_dir, user_data_dir)
+        rankings, num_users = read_user_files_and_rank(julebrus_table, user_data_dir)
         for item in rankings:
-            picture = f"{item['brusnavn']}.jpg"
-            assert (pictures_dir / picture).is_file()
-            item["picture"] = picture
+            item["symbol"] = kodenavn.index(item["kodenavn"]) + 1
+            item["picture"] = f"{item['brusnavn']}.jpg"
+            item["fullt_navn"] = brusnavn[item["brusnavn"]]
         return render_template("results.html", rankings=rankings, num_users=num_users)
 
-    @flask_app.route("/pictures/<path:filename>")
+    @flask_app.route("/bilder/<path:filename>")
     def picture(filename: str):
         if not pictures_dir.is_dir():
             abort(404)
@@ -135,16 +182,16 @@ def app() -> None:
         nargs="?",
         type=Path,
         default=default_data_dir,
-        help=f"Directory containing table_data/, user_data/ and pictures/ (default: {default_data_dir})",
+        help=(
+            "Directory containing brusnavn.json and bilder/; julebrus.tsv and user_data/ "
+            f"are created as needed (default: {default_data_dir})"
+        ),
     )
     args = parser.parse_args()
 
     data_dir = args.data_dir.resolve()
-    table_data_dir = data_dir / "table_data"
-    user_data_dir = data_dir / "user_data"
-    pictures_dir = data_dir / "pictures"
 
     print("Starting Julebrus app...")
     print(f"Data directory: {data_dir}")
-    flask_app = create_app(table_data_dir, user_data_dir, pictures_dir)
+    flask_app = create_app(data_dir)
     flask_app.run(debug=True, host="0.0.0.0", port=5000)
